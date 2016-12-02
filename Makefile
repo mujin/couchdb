@@ -276,7 +276,9 @@ install:
 	@echo "    To install CouchDB into your system, copy the rel/couchdb"
 	@echo "    to your desired installation location. For example:"
 	@echo "    cp -r rel/couchdb /usr/local/lib"
-	@echo
+	@echo "    cp file to ${DESTDIR}/${prefix}"
+	mkdir -p ${DESTDIR}/${prefix}
+	cp -r rel/couchdb/erts-6.1 rel/couchdb/bin rel/couchdb/lib rel/couchdb/share rel/couchdb/release rel/couchdb/etc ${DESTDIR}/${prefix}/
 
 ################################################################################
 # Cleaning
