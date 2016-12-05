@@ -281,7 +281,8 @@ install:
 	@rm -rf rel/couchdb
 	@$(REBAR) generate # make full erlang release
 	mkdir -p ${DESTDIR}/${prefix}
-	cp -r rel/couchdb/erts-6.1 rel/couchdb/bin rel/couchdb/lib rel/couchdb/share rel/couchdb/releases rel/couchdb/etc ${DESTDIR}/${prefix}/
+	#cp -r rel/couchdb/erts-6.1 rel/couchdb/bin rel/couchdb/lib rel/couchdb/share rel/couchdb/releases rel/couchdb/etc ${DESTDIR}/${prefix}/
+	cp -r rel/couchdb/* ${DESTDIR}/${prefix}/
 
 ################################################################################
 # Cleaning

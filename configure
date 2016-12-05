@@ -27,7 +27,7 @@ WITH_FAUXTON=1
 WITH_DOCS=1
 WITH_SNAP=1
 SKIP_DEPS=0
-
+LOCALCONFDIR=/home/mujin/couchdb/etc
 COUCHDB_USER=`whoami`
 
 . ${rootdir}/version.mk
@@ -169,8 +169,8 @@ cat > rel/couchdb.config << EOF
 %
 {package_author_name, "$PACKAGE_AUTHOR_NAME"}.
 {prefix, "$PREFIX"}.
-{data_dir, "./data"}.
-{view_index_dir, "./data"}.
+{data_dir, "/data/couchdb/data"}.
+{view_index_dir, "/data/couchdb/data"}.
 {log_file, "$LOG_FILE"}.
 {fauxton_root, "./share/www"}.
 {user, "$COUCHDB_USER"}.
