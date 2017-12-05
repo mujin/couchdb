@@ -12,14 +12,16 @@
 
 include version.mk
 
+SHELL=cmd.exe
 REBAR?=$(shell where rebar.cmd)
 IN_RELEASE = $(shell if not exist .git echo true)
 ifeq ($(IN_RELEASE), true)
-COUCHDB_VERSION_SUFFIX = -$(shell git rev-parse --short --verify HEAD)
+COUCHDB_VERSION_SUFFIX=
+COUCHDB_VERSION = $(vsn_major).$(vsn_minor).$(vsn_patch)
 else
-COUCHDB_VERSION_SUFFIX = 
-endif
+COUCHDB_VERSION_SUFFIX = -$(shell git rev-parse --short --verify HEAD)
 COUCHDB_VERSION = $(vsn_major).$(vsn_minor).$(vsn_patch)$(COUCHDB_VERSION_SUFFIX)
+endif
 
 DESTDIR=
 
@@ -100,7 +102,10 @@ else
 	@copy test\javascript\tests\lorem*.txt src\fauxton\dist\release\test
 endif
 	-@rmdir /s/q dev\lib
-	@python dev\run -n 1 -q --with-admin-party-please python test\javascript\run $(suites)
+	@python dev\run -n 1 -q --with-admin-party-please \
+		--enable-erlang-views \
+		-c startup_jitter=0 \
+		python test\javascript\run $(suites)
 
 
 .PHONY: check-qs
@@ -170,13 +175,9 @@ dist: all
 	@copy -r share\www apache-couchdb-$(COUCHDB_VERSION)\share
 	@mkdir apache-couchdb-$(COUCHDB_VERSION)\share\docs\html
 	@copy -r src\docs\build\html apache-couchdb-$(COUCHDB_VERSION)\share\docs
-	@mkdir apache-couchdb-$(COUCHDB_VERSION)\share\docs\pdf
-	@copy src\docs\build\latex\CouchDB.pdf apache-couchdb-$(COUCHDB_VERSION)\share\docs\pdf
 
 	@mkdir apache-couchdb-$(COUCHDB_VERSION)\share\docs\man
 	@copy src\docs\build\man\apachecouchdb.1 apache-couchdb-$(COUCHDB_VERSION)\share\docs\man
-	@mkdir apache-couchdb-$(COUCHDB_VERSION)\share\docs\info
-	@copy src\docs\build\texinfo\CouchDB.info apache-couchdb-$(COUCHDB_VERSION)\share\docs\info
 
 	@tar czf apache-couchdb-$(COUCHDB_VERSION).tar.gz apache-couchdb-$(COUCHDB_VERSION)
 	@echo "Done: apache-couchdb-$(COUCHDB_VERSION).tar.gz"
@@ -202,11 +203,9 @@ ifeq ($(with_docs), 1)
 ifeq ($(IN_RELEASE), true)
 	@xcopy share\docs\html rel\couchdb\share\www\docs /E /I
 	@copy share\docs\man\apachecouchdb.1 rel\couchdb\share\docs\couchdb.1
-	-@copy share\docs\info\CouchDB.info rel\couchdb\share\docs\CouchDB.info
 else
 	@xcopy src\docs\build\html rel\couchdb\share\www\docs /E /I
 	@copy src\docs\build\man\apachecouchdb.1 rel\couchdb\share\docs\couchdb.1
-	-@copy src\docs\build\texinfo\CouchDB.info rel\couchdb\share\docs\CouchDB.info
 endif
 endif
 
@@ -284,9 +283,7 @@ uninstall:
 	-@rmdir /s/q $(DESTDIR)\$(data_dir)
 	-@rmdir /s/q $(DESTDIR)\$(doc_dir)
 	-@rmdir /s/q $(DESTDIR)\$(html_dir)
-	-@rmdir /s/q $(DESTDIR)\$(pdf_dir)
 	-@rmdir /s/q $(DESTDIR)\$(man_dir)
-	-@rmdir /s/q $(DESTDIR)\$(info_dir)
 
 
 ################################################################################
@@ -307,7 +304,7 @@ config.erl:
 src\docs\build:
 	@echo Building docs...
 ifeq ($(with_docs), 1)
-	@cd src\docs && make.bat html && make.bat texinfo && make.bat man
+	@cd src\docs && make.bat html && make.bat man
 endif
 
 

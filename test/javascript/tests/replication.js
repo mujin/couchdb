@@ -15,7 +15,7 @@ couchTests.replication = function(debug) {
   if (debug) debugger;
 
   var host = CouchDB.host;
-  // as we change names during execution, do NOT use test_suite_db or a 
+  // as we change names during execution, do NOT use test_suite_db or a
   // pre-computed value like ''+sourceDb.name (compute only on use)
   var sourceDb;
   var targetDb;
@@ -60,17 +60,17 @@ couchTests.replication = function(debug) {
     return data;
   }
 
-  
+
   function runAllNodes(callback) {
     // new and fancy: clustered version: pull cluster_members and walk over all of them
-    var xhr = CouchDB.request("GET", "/_membership"); 
+    var xhr = CouchDB.request("GET", "/_membership");
     T(xhr.status === 200);
     JSON.parse(xhr.responseText).cluster_nodes.forEach(callback);
   }
 
   function runFirstNode(callback) {
     // new and fancy: clustered version: pull cluster_members and walk over all of them
-    var xhr = CouchDB.request("GET", "/_membership"); 
+    var xhr = CouchDB.request("GET", "/_membership");
     T(xhr.status === 200);
     var node = JSON.parse(xhr.responseText).cluster_nodes[0];
     return callback(node);
@@ -132,7 +132,7 @@ couchTests.replication = function(debug) {
         sourceDb.deleteDb();
       }
       sourceDb = new CouchDB(get_random_db_name() + "_src",{"X-Couch-Full-Commit":"false"});
-      sourceDb.createDb(); 
+      sourceDb.createDb();
     }
     for (var i = 0; i < docs.length; i++) {
       var doc = docs[i];
@@ -218,12 +218,15 @@ couchTests.replication = function(debug) {
     return null;
   }
 
+  function getSourceLastSeq(sourceDb) {
+      return sourceDb.changes({"since":"now"}).last_seq;
+  }
 
   function waitForSeq(sourceDb, targetDb, rep_id) {
-    var sourceSeq = sourceDb.info().update_seq,
+    var sourceSeq = getSourceLastSeq(sourceDb),
         t0 = new Date(),
         t1,
-        ms = 3000;
+        ms = 30000;
 
     do {
       var task = getTask(rep_id, 0);
@@ -231,7 +234,24 @@ couchTests.replication = function(debug) {
         return;
       }
       t1 = new Date();
+      sleep(500);
     } while (((t1 - t0) <= ms));
+    throw(Error('Timeout waiting for replication through_seq = source update seq'));
+  }
+
+  function waitReplicationTaskStop(rep_id) {
+      var t0 = new Date(),
+          t1,
+          ms = 30000;
+      do {
+        var task = getTask(rep_id, 0);
+        if(task == null) {
+            return;
+        }
+        t1 = new Date();
+        sleep(500);
+      } while (((t1 - t0) <= ms));
+      throw(Error('Timeout waiting for replication task stop' + rep_id));
   }
 
   // test simple replications (not continuous, not filtered), including
@@ -1423,7 +1443,8 @@ couchTests.replication = function(debug) {
     };
     TEquals(true, sourceDb.save(doc).ok);
 
-    waitForSeq(sourceDb, targetDb, rep_id);
+    waitReplicationTaskStop(rep_id);
+
     copy = targetDb.open(doc._id);
     TEquals(null, copy);
   }
@@ -1606,8 +1627,10 @@ couchTests.replication = function(debug) {
       if (prevJoeUserDoc) {
         joeUserDoc._rev = prevJoeUserDoc._rev;
       }
-      TEquals(true, defaultUsersDb.save(joeUserDoc).ok);
-
+      if(i == 0) {
+        TEquals(true, defaultUsersDb.save(joeUserDoc).ok);
+        wait(5000);
+      }
       TEquals(true, CouchDB.login("joe", "erly").ok);
       TEquals('joe', CouchDB.session().userCtx.name);
 
@@ -1683,7 +1706,10 @@ couchTests.replication = function(debug) {
       if (prevJoeUserDoc) {
         joeUserDoc._rev = prevJoeUserDoc._rev;
       }
-      TEquals(true, defaultUsersDb.save(joeUserDoc).ok);
+      if(i == 0) {
+        TEquals(true, defaultUsersDb.save(joeUserDoc).ok);
+        wait(5000);
+      }
 
       TEquals(true, CouchDB.login("joe", "erly").ok);
       TEquals('joe', CouchDB.session().userCtx.name);
@@ -1710,9 +1736,6 @@ couchTests.replication = function(debug) {
 
   // COUCHDB-885 - push replication of a doc with attachment causes a
   //               conflict in the target.
-  sourceDb = new CouchDB("test_suite_db_a");
-  targetDb = new CouchDB("test_suite_db_b");
-
   populateSourceDb([]);
   populateTargetDb([]);
 
@@ -1818,7 +1841,7 @@ couchTests.replication = function(debug) {
       headers: {"Content-Type": "application/json"}
   });
   TEquals(200, xhr.status, "Replication cancel request success");
-
+  waitReplicationTaskStop(repId);
   task = getTask(repId);
   TEquals(null, task, "Replication was canceled");
 
@@ -1892,6 +1915,6 @@ couchTests.replication = function(debug) {
   //usersDb.deleteDb();
   sourceDb.deleteDb();
   targetDb.deleteDb();
-  // (not sure what this is - cleanup after 'file not found tests' poss. - not harmful anyway) 
+  // (not sure what this is - cleanup after 'file not found tests' poss. - not harmful anyway)
   (new CouchDB("test_suite_db")).deleteDb();
 };

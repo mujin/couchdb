@@ -1,6 +1,18 @@
 Apache CouchDB README
 =====================
 
++--------------------------------+------------+
+| Travis CI master build status  | |travisci| |
++--------------------------------+------------+
+| Jenkins CI master build status | |jenkins|  |
++--------------------------------+------------+
+
+.. |travisci| image:: https://travis-ci.org/apache/couchdb.svg?branch=master
+    :target: https://travis-ci.org/apache/couchdb
+
+.. |jenkins| image:: https://builds.apache.org/job/CouchDB/job/master/badge/icon
+    :target: https://builds.apache.org/blue/organizations/jenkins/CouchDB/activity
+
 Installation
 ------------
 
@@ -23,9 +35,9 @@ We have documentation:
 
     http://docs.couchdb.org/
 
-They include a changelog:
+It includes a changelog:
 
-    http://docs.couchdb.org/en/latest/changelog.html
+    http://docs.couchdb.org/en/latest/whatsnew/
 
 For troubleshooting or cryptic error messages, see:
 
@@ -68,6 +80,13 @@ For Fauxton developers fixing the admin-party does not work via the button in
 Fauxton. To fix the admin party you have to run ``./dev/run`` with the ``admin``
 flag, e.g. ``./dev/run --admin=username:password``. If you want to have an
 admin-party, just omit the flag.
+
+Contributing to CouchDB
+-----------------------
+
+You can learn more about our contributing process here:
+
+    https://github.com/apache/couchdb/blob/master/CONTRIBUTING.md
 
 Cryptographic Software Notice
 -----------------------------

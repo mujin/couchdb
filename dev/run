@@ -58,7 +58,7 @@ def log(msg):
                 if log.verbose:
                     sys.stdout.write(chars)
                     sys.stdout.flush()
-            callargs = dict(zip(inspect.getargspec(func).args, args))
+            callargs = dict(list(zip(inspect.getargspec(func).args, args)))
             callargs.update(kwargs)
             print_('[ * ] ' + msg.format(**callargs) + ' ... ')
             try:
@@ -113,6 +113,9 @@ def setup_argparse():
                       dest='with_admin_party', default=False,
                       action='store_true',
                       help='Runs a dev cluster with admin party mode on')
+    parser.add_option('--enable-erlang-views',
+                      action='store_true',
+                      help='Enables the Erlang view server')
     parser.add_option('--no-join',
                       dest='no_join', default=False,
                       action='store_true',
@@ -125,6 +128,8 @@ def setup_argparse():
                       help='HAProxy port')
     parser.add_option('--node-number', dest="node_number", type=int, default=1,
                       help='The node number to seed them when creating the node(s)')
+    parser.add_option('-c', '--config-overrides', action="append", default=[],
+                      help='Optional key=val config overrides. Can be repeated')
     return parser.parse_args()
 
 
@@ -133,6 +138,7 @@ def setup_context(opts, args):
     return {'N': opts.nodes,
             'no_join': opts.no_join,
             'with_admin_party': opts.with_admin_party,
+            'enable_erlang_views': opts.enable_erlang_views,
             'admin': opts.admin.split(':', 1) if opts.admin else None,
             'nodes': ['node%d' % (i + opts.node_number) for i in range(opts.nodes)],
             'node_number': opts.node_number,
@@ -143,6 +149,8 @@ def setup_context(opts, args):
             'with_haproxy': opts.with_haproxy,
             'haproxy': opts.haproxy,
             'haproxy_port': opts.haproxy_port,
+            'config_overrides': opts.config_overrides,
+            'reset_logs': True,
             'procs': []}
 
 
@@ -185,9 +193,21 @@ def setup_configs(ctx):
             "cluster_port": cluster_port,
             "backend_port": backend_port,
             "fauxton_root": fauxton_root,
-            "uuid": "fake_uuid_for_dev"
+            "uuid": "fake_uuid_for_dev",
+            "_default": "",
+            "compaction_daemon": "{}"
         }
         write_config(ctx, node, env)
+
+
+def apply_config_overrides(ctx, content):
+    for kv_str in  ctx['config_overrides']:
+        key, val = kv_str.split('=')
+        key, val = key.strip(), val.strip()
+        match = "[;=]{0,2}%s.*" % key
+        repl = "%s = %s" % (key, val)
+        content = re.sub(match, repl, content)
+    return content
 
 
 def get_ports(idnode):
@@ -203,6 +223,9 @@ def write_config(ctx, node, env):
         base = os.path.basename(fname)
         tgt = os.path.join(etc_tgt, base)
 
+        if os.path.isdir(fname):
+            continue
+
         with open(fname) as handle:
             content = handle.read()
 
@@ -211,6 +234,7 @@ def write_config(ctx, node, env):
 
         if base == "default.ini":
             content = hack_default_ini(ctx, node, content)
+            content = apply_config_overrides(ctx, content)
         elif base == "local.ini":
             content = hack_local_ini(ctx, content)
 
@@ -253,6 +277,13 @@ def hack_default_ini(ctx, node, contents):
 
     repl = toposixpath("coffeescript = %s %s" % (couchjs, coffeejs))
     contents = re.sub("(?m)^coffeescript.*$", repl, contents)
+
+    if ctx['enable_erlang_views']:
+        contents = re.sub(
+            "^\[native_query_servers\]$",
+            "[native_query_servers]\nerlang = {couch_native_process, start_link, []}",
+            contents,
+            flags=re.MULTILINE)
 
     return contents
 
@@ -381,8 +412,12 @@ def boot_node(ctx, node):
         "-pa", os.path.join(erl_libs, "*"),
         "-s", "boot_node"
     ]
+    if ctx['reset_logs']:
+        mode = "wb"
+    else:
+        mode = "r+b"
     logfname = os.path.join(ctx['devdir'], "logs", "%s.log" % node)
-    log = open(logfname, "wb")
+    log = open(logfname, mode)
     cmd = [toposixpath(x) for x in cmd]
     return sp.Popen(cmd, stdin=sp.PIPE, stdout=log, stderr=sp.STDOUT, env=env)
 
@@ -390,22 +425,23 @@ def boot_node(ctx, node):
 @log('Running cluster setup')
 def cluster_setup(ctx):
     lead_port, _ = get_ports(1)
-    if enable_cluster(lead_port, *ctx['admin']):
+    if enable_cluster(ctx['N'], lead_port, *ctx['admin']):
         for num in range(1, ctx['N']):
             node_port, _ = get_ports(num + 1)
-            enable_cluster(node_port, *ctx['admin'])
+            enable_cluster(ctx['N'], node_port, *ctx['admin'])
             add_node(lead_port, node_port, *ctx['admin'])
         finish_cluster(lead_port, *ctx['admin'])
     return lead_port
 
 
-def enable_cluster(port, user, pswd):
+def enable_cluster(node_count, port, user, pswd):
     conn = httpclient.HTTPConnection('127.0.0.1', port)
     conn.request('POST', '/_cluster_setup',
                  json.dumps({'action': 'enable_cluster',
                              'bind_address': '0.0.0.0',
                              'username': user,
-                             'password': pswd}),
+                             'password': pswd,
+                             'node_count': node_count}),
                  {'Authorization': basic_auth_header(user, pswd),
                   'Content-Type': 'application/json'})
     resp = conn.getresponse()
@@ -472,7 +508,7 @@ def cluster_setup_with_admin_party(ctx):
         conn.request('PUT', "/_nodes/%s@127.0.0.1" % node, body)
         resp = conn.getresponse()
         if resp.status not in (200, 201, 202, 409):
-            print('Failed to join %s into cluster: %s' % (node, resp.read()))
+            print(('Failed to join %s into cluster: %s' % (node, resp.read())))
             sys.exit(1)
     create_system_databases(host, 15984)
 
@@ -525,6 +561,7 @@ def run_command(ctx, cmd):
 
 @log('Restart all nodes')
 def reboot_nodes(ctx):
+    ctx['reset_logs'] = False
     kill_processes(ctx)
     boot_nodes(ctx)
     ensure_all_nodes_alive(ctx)

@@ -33,6 +33,24 @@ couchTests.attachments= function(debug) {
   var save_response = db.save(binAttDoc);
   T(save_response.ok);
 
+  var badAttDoc = {
+    _id: "bad_doc",
+    _attachments: {
+      "foo.txt": {
+        content_type: "text/plain",
+        data: "notBase64Encoded="
+      }
+    }
+  };
+
+  try {
+    db.save(badAttDoc);
+    T(false && "Shouldn't get here!");
+  } catch (e) {
+    TEquals("bad_request", e.error);
+    TEquals("Invalid attachment data for foo.txt", e.message);
+  }
+
   var xhr = CouchDB.request("GET", "/" + db_name + "/bin_doc/foo.txt");
   T(xhr.responseText == "This is a base64 encoded text");
   T(xhr.getResponseHeader("Content-Type") == "application/octet-stream");
@@ -116,8 +134,7 @@ couchTests.attachments= function(debug) {
     headers:{"Content-Type":"text/plain;charset=utf-8"},
     body:bin_data
   });
-// TODO: revisit whether 500 makes sense for non-existing revs
-  T(xhr.status == 409 || xhr.status == 500);
+  T(xhr.status == 409);
 
   // with current rev
   var xhr = CouchDB.request("PUT", "/" + db_name + "/bin_doc3/attachment.txt?rev=" + rev, {

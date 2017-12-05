@@ -59,10 +59,9 @@ function waitForSuccess(fun, tag) {
   
   while (!complete) {
     var now = new Date().getTime();
-    if (now > start + 5000) {
+    if (now > start + 10000) {
       complete = true;
-      print('\nFAIL ' + tag);
-      quit(1);
+      throw(Error('\nFAIL ' + tag));
     }
     try {
       while (new Date().getTime() < now + 500);
@@ -71,11 +70,42 @@ function waitForSuccess(fun, tag) {
   }
 }
 
+function getUptime() {
+  var url = "/_node/node1@127.0.0.1/_system"
+  var stats = JSON.parse(CouchDB.request("GET", url).responseText);
+  return stats['uptime'];
+}
+
 function restartServer() {
+  var olduptime = getUptime();
+  if (olduptime < 15) {
+    // handle quick-restarts, though this slows things down
+    sleep(15000);
+    olduptime = getUptime();
+  }
   print('restart');
+
+  /* Wait up to 15s for server to restart */
   var start = new Date().getTime();
-  while (new Date().getTime() < start + 1000);
-  waitForSuccess(CouchDB.isRunning, 'restart');
+  var complete = false;
+  while (1) {
+    sleep(500);
+    try {
+      if (getUptime() < olduptime) {
+        return;
+      }
+    } catch (e) {}
+
+    var now = new Date().getTime();
+    if (now > start + 15000) {
+      try {
+        uptime = getUptime();
+        throw(Error('FAILED to restart: ' + uptime + ' not < ' + olduptime));
+      } catch (e) {
+        throw(Error('FAILED to restart: server is unresponsive, waited 15s'));
+      }
+    }
+  }
 }
 
 /*

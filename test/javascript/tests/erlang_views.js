@@ -11,16 +11,13 @@
 // the License.
 
 couchTests.erlang_views = function(debug) {
-  return console.log('TODO: config not available on cluster');
   var db_name = get_random_db_name();
   var db = new CouchDB(db_name, {"X-Couch-Full-Commit":"false"});
   db.createDb();
   if (debug) debugger;
 
   run_on_modified_server(
-    [{section: "native_query_servers",
-      key: "erlang",
-      value: "{couch_native_process, start_link, []}"}],
+    [],
     function() {
       // Note we just do some basic 'smoke tests' here - the
       // test/query_server_spec.rb tests have more comprehensive tests
@@ -97,8 +94,11 @@ couchTests.erlang_views = function(debug) {
 
       // Larger dataset
 
-      // db.deleteDb();
-      // db.createDb();
+      db.deleteDb();
+      // avoid Heisenbugs when files are not cleared entirely
+      db_name = get_random_db_name();
+      db = new CouchDB(db_name, {"X-Couch-Full-Commit":"false"});
+      db.createDb();
       var words = "foo bar abc def baz xxyz".split(/\s+/);
       
       var docs = [];
