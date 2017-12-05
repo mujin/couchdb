@@ -39,13 +39,19 @@ You should have the following installed:
  * Erlang OTP (>=R16B03-1, =<19.x) (http://erlang.org/)
  * ICU                          (http://icu-project.org/)
  * OpenSSL                      (http://www.openssl.org/)
- * Mozilla SpiderMonkey (1.8.5) (http://www.mozilla.org/js/spidermonkey/)
+ * Mozilla SpiderMonkey (1.8.5) (https://developer.mozilla.org/en/docs/Mozilla/Projects/SpiderMonkey/Releases/1.8.5)
  * GNU Make                     (http://www.gnu.org/software/make/)
  * GNU Compiler Collection      (http://gcc.gnu.org/)
  * libcurl                      (http://curl.haxx.se/libcurl/)
  * help2man                     (http://www.gnu.org/s/help2man/)
- * Python (>=2.7) for docs      (http://python.org/)
- * Python Sphinx (>=1.1.3)      (http://pypi.python.org/pypi/Sphinx)
+ * Python (>=2.7)               (http://python.org/)
+
+To build Fauxton, you should have the following installed:
+ * Node.JS (>=6.x)              (https://nodejs.org/)
+   -- obtainable from NodeSource (https://github.com/nodesource/distributions)
+
+To build the documentation, you should have the following installed:
+ * Python Sphinx (>=1.5)        (http://pypi.python.org/pypi/Sphinx)
 
 It is recommended that you install Erlang OTP R16B03-1 or above where
 possible.  You will only need libcurl if you plan to run the
@@ -54,17 +60,20 @@ installing the CouchDB man pages.  Python and Sphinx are only required
 for building the online documentation. Documentation build can be disabled
 by adding the `--disable-docs` flag to the `configure` script.
 
-For up to date instructions, please see:
-
-  https://cwiki.apache.org/confluence/display/COUCHDB/Installing+CouchDB
-
 ### Debian-based Systems
 
 You can install the dependencies by running:
 
     sudo apt-get --no-install-recommends -y install \
-        build-essential pkg-config erlang \
+        build-essential pkg-config erlang erlang-reltool \
         libicu-dev libmozjs185-dev libcurl4-openssl-dev
+
+You can install the Node.JS dependencies via [NodeSource](https://github.com/nodesource/distributions#installation-instructions).
+
+You can install the documentation dependencies by running:
+
+    sudo apt-get --no-install-recommends -y install \
+        python-sphinx
 
 Be sure to update the version numbers to match your system's available
 packages.
@@ -78,6 +87,14 @@ You can install the dependencies by running:
         erlang-os_mon erlang-xmerl help2man \
         js-devel-1.8.5 libicu-devel libtool perl-Test-Harness
 
+You can install the Node.JS dependencies via [NodeSource](https://github.com/nodesource/distributions#rpminstall).
+
+The built-in packages for Sphinx in RHEL repositories are too old
+to run the documentation build process. Instead, use pip:
+
+    sudo yum install python-pip
+    sudo pip install sphinx
+
 ### Mac OS X
 
 To build CouchDB from source on Mac OS X, you will need to install
@@ -89,6 +106,14 @@ You can then install the other dependencies by running:
 
     brew install autoconf autoconf-archive automake libtool \
         erlang icu4c spidermonkey curl pkg-config
+
+You can install the Node.JS dependencies via the
+[official Macintosh installer](https://nodejs.org/en/download/).
+
+You can install the documentation dependencies by running:
+
+    sudo easy_install pip
+    sudo pip install sphinx
 
 You will need Homebrew installed to use the `brew` command.
 
@@ -109,6 +134,11 @@ documentation, substitute `gmake`.
 You can install this by running:
 
     pkg install gmake
+
+You can install the remaining dependencies by running:
+
+    pkg install npm4 help2man openssl icu curl git \
+        autoconf automake libtool node spidermonkey185
 
 ## Installing
 
@@ -148,6 +178,7 @@ You should create a special `couchdb` user for CouchDB.
 On many Unix-like systems you can run:
 
     adduser --system \
+            --home /opt/couchdb \
             --no-create-home \
             --shell /bin/bash \
             --group --gecos \
@@ -159,13 +190,7 @@ site to find the documentation appropriate for your system. As of recent
 versions of OS X, this functionality is also included in Server.app,
 available through the App Store only as part of OS X Server.
 
-You must make sure that:
-
-    * The user has a working POSIX shell
-
-    * The user's home directory is wherever you have copied the release.
-      As a recommendation, copy the `rel\couchdb` directory into
-      `/home/couchdb` or `/Users/couchdb`.
+You must make sure that the user has a working POSIX shell.
 
 You can test this by:
 
@@ -175,19 +200,19 @@ You can test this by:
 
 Copy the built couchdb release to the new user's home directory:
 
-    cp -R /path/to/couchdb/rel/couchdb /home/couchdb
+    cp -R /path/to/couchdb/rel/couchdb /opt/couchdb
 
 Change the ownership of the CouchDB directories by running:
 
-    chown -R couchdb:couchdb /home/couchdb/couchdb 
+    chown -R couchdb:couchdb /opt/couchdb
 
 Change the permission of the CouchDB directories by running:
 
-    find /home/couchdb/couchdb -type d -exec chmod 0770 {} \;
+    find /opt/couchdb -type d -exec chmod 0770 {} \;
 
 Update the permissions for your ini files:
 
-    chmod 0644 /home/couchdb/couchdb/etc/*
+    chmod 0644 /opt/couchdb/etc/*
 
 ## First Run
 
@@ -211,11 +236,9 @@ To check that everything has worked, point your web browser to:
 
 From here you should verify your installation by pointing your web browser to:
 
-    http://localhost:5984/_utils/verify_install.html
+    http://localhost:5984/_utils/#/verifyinstall
 
 ## Running as a Daemon
-
-CouchDB no longer ships with any daemonization scripts.
 
 The couchdb team recommends [runit](http://smarden.org/runit/) to
 run CouchDB persistently and reliably. Configuration of runit is
@@ -224,5 +247,11 @@ user mailing list.
 
 Naturally, you can configure systemd, launchd or SysV-init daemons to
 launch CouchDB and keep it running using standard configuration files.
+Sample scripts are in the couchdb-pkg repository:
+
+* SysV-init (Debian-style): https://github.com/apache/couchdb-pkg/blob/master/debian/couchdb.init
+* SysV-init (RHEL-style): https://github.com/apache/couchdb-pkg/blob/master/rpm/SOURCES/couchdb.init
+* upstart: Use the Debian-style sysvinit script instead.
+* systemd: https://github.com/apache/couchdb-pkg/blob/master/debian/couchdb.service
 
 Consult your system documentation for more information.

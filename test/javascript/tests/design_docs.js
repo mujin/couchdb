@@ -207,26 +207,6 @@ couchTests.design_docs = function(debug) {
 
     TEquals(resp.rev, db.save(designDoc).rev);
 
-    // test that editing a show fun on the ddoc results in a change in output
-    xhr = CouchDB.request("GET", "/" + db_name + "/_design/test/_show/simple");
-    T(xhr.status == 200);
-    TEquals(xhr.responseText, "ok");
-
-    designDoc.shows.simple = (function() {
-      return 'ko';
-    }).toString();
-    T(db.save(designDoc).ok);
-
-    xhr = CouchDB.request("GET", "/" + db_name + "/_design/test/_show/simple");
-    T(xhr.status == 200);
-    TEquals(xhr.responseText, "ko");
-
-    xhr = CouchDB.request(
-      "GET", "/" + db_name_a + "/_design/test/_show/simple?cache=buster"
-    );
-    T(xhr.status == 200);
-    TEquals("ok", xhr.responseText, 'query server used wrong ddoc');
-
     // test commonjs require
     xhr = CouchDB.request("GET", "/" + db_name + "/_design/test/_show/requirey");
     T(xhr.status == 200);
@@ -243,22 +223,6 @@ couchTests.design_docs = function(debug) {
     );
     TEquals(200, xhr.status);
     TEquals("One", xhr.responseText);
-
-    // Test that changes to the design doc properly invalidate cached modules:
-
-    // update the designDoc and replace
-    designDoc.whatever.commonjs.circular_one = "exports.name = 'Updated';"
-    T(db.save(designDoc).ok);
-
-    // request circular_require show function again and check the response has
-    // changed
-    xhr = CouchDB.request(
-      "GET",
-      "/" + db_name + "/_design/test/_show/circular_require"
-    );
-    TEquals(200, xhr.status);
-    TEquals("Updated", xhr.responseText);
-
 
     // test module id values are as expected:
     xhr = CouchDB.request("GET", "/" + db_name + "/_design/test/_show/idtest1");

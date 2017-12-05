@@ -14,7 +14,7 @@ include version.mk
 
 REBAR?=$(shell echo `pwd`/bin/rebar)
 IN_RELEASE = $(shell if [ ! -d .git ]; then echo true; fi)
-COUCHDB_VERSION_SUFFIX = $(shell if [ -d .git ]; then echo '-`git rev-parse --short --verify HEAD`'; fi)
+COUCHDB_VERSION_SUFFIX = $(shell if [ ! -z "$(COUCH_RC)" ]; then echo '-RC$(COUCH_RC)'; else if [ -d .git ]; then echo '-`git rev-parse --short --verify HEAD`'; fi; fi)
 COUCHDB_VERSION = $(vsn_major).$(vsn_minor).$(vsn_patch)$(COUCHDB_VERSION_SUFFIX)
 
 DESTDIR=
@@ -36,6 +36,8 @@ DIALYZE_OPTS=$(shell echo "\
 	skip_deps=$(skip_deps) \
 	" | sed -e 's/[a-z]\+= / /g')
 
+#ignore javascript tests
+ignore_js_suites=
 
 ################################################################################
 # Main commands
@@ -91,6 +93,7 @@ fauxton: share/www
 check: all
 	@$(MAKE) eunit
 	@$(MAKE) javascript
+	@$(MAKE) mango-test
 #	@$(MAKE) build-test
 
 
@@ -102,6 +105,12 @@ eunit: couch
 	@$(REBAR) setup_eunit 2> /dev/null
 	@$(REBAR) -r eunit $(EUNIT_OPTS)
 
+.PHONY: soak-eunit
+soak-eunit: export BUILDDIR = $(shell pwd)
+soak-eunit: export ERL_AFLAGS = -config $(shell pwd)/rel/files/eunit.config
+soak-eunit: couch
+	@$(REBAR) setup_eunit 2> /dev/null
+	while [ $$? -eq 0 ] ; do $(REBAR) -r eunit $(EUNIT_OPTS) ; done
 
 .PHONY: javascript
 # target: javascript - Run JavaScript test suites or specific ones defined by suites option
@@ -113,10 +122,29 @@ else
 	@mkdir -p src/fauxton/dist/release/test
 	@cp test/javascript/tests/lorem*.txt src/fauxton/dist/release/test/
 endif
-	# This might help with emfile errors during `make javascript`: ulimit -n 10240
 	@rm -rf dev/lib
-	@dev/run -n 1 -q --with-admin-party-please test/javascript/run $(suites)
+	@dev/run -n 1 -q --with-admin-party-please \
+            --enable-erlang-views \
+            -c 'startup_jitter=0' \
+            'test/javascript/run --suites "$(suites)" \
+            --ignore "$(ignore_js_suites)"'
 
+.PHONY: soak-javascript
+soak-javascript:
+	@mkdir -p share/www/script/test
+ifeq ($(IN_RELEASE), true)
+	@cp test/javascript/tests/lorem*.txt share/www/script.test/
+else
+	@mkdir -p src/fauxton/dist/release/test
+	@cp test/javascript/tests/lorem*.txt src/fauxton/dist/release/test/
+endif
+	@rm -rf dev/lib
+	while [ $$? -eq 0 ]; do \
+		dev/run -n 1 -q --with-admin-party-please \
+				-c 'startup_jitter=0' \
+				'test/javascript/run --suites "$(suites)" \
+				--ignore "$(ignore_js_suites)"'  \
+	done
 
 .PHONY: check-qs
 # target: check-qs - Run query server tests (ruby and rspec required!)
@@ -152,6 +180,12 @@ list-js-suites:
 # target: build-test - Test build script
 build-test:
 	@test/build/test-configure.sh
+
+
+.PHONY: mango-test
+# target: mango-test - Run Mango tests
+mango-test: all
+	./test/build/test-run-couch-for-mango.sh \
 
 
 ################################################################################
@@ -201,11 +235,6 @@ introspect:
 	@$(REBAR) -r update-deps
 	@./introspect
 
-.PHONY: snap
-# target: snap - Build Snap package
-snap: release
-	@cd rel/; snapcraft snap --output ../couchdb_$(COUCHDB_VERSION)_amd64.snap
-
 ################################################################################
 # Distributing
 ################################################################################
@@ -219,13 +248,9 @@ dist: all
 	@cp -r share/www apache-couchdb-$(COUCHDB_VERSION)/share/
 	@mkdir -p apache-couchdb-$(COUCHDB_VERSION)/share/docs/html
 	@cp -r src/docs/build/html apache-couchdb-$(COUCHDB_VERSION)/share/docs/
-	@mkdir -p apache-couchdb-$(COUCHDB_VERSION)/share/docs/pdf
-	@cp src/docs/build/latex/CouchDB.pdf apache-couchdb-$(COUCHDB_VERSION)/share/docs/pdf/
 
 	@mkdir -p apache-couchdb-$(COUCHDB_VERSION)/share/docs/man
 	@cp src/docs/build/man/apachecouchdb.1 apache-couchdb-$(COUCHDB_VERSION)/share/docs/man/
-	@mkdir -p apache-couchdb-$(COUCHDB_VERSION)/share/docs/info
-	@cp src/docs/build/texinfo/CouchDB.info apache-couchdb-$(COUCHDB_VERSION)/share/docs/info/
 
 	@tar czf apache-couchdb-$(COUCHDB_VERSION).tar.gz apache-couchdb-$(COUCHDB_VERSION)
 	@echo "Done: apache-couchdb-$(COUCHDB_VERSION).tar.gz"
@@ -249,15 +274,11 @@ ifeq ($(IN_RELEASE), true)
 	@mkdir -p rel/couchdb/share/www/docs/
 	@mkdir -p rel/couchdb/share/docs/
 	@cp -R share/docs/html/* rel/couchdb/share/www/docs/
-	@cp share/docs/pdf/CouchDB.pdf rel/couchdb/share/docs/CouchDB.pdf
 	@cp share/docs/man/apachecouchdb.1 rel/couchdb/share/docs/couchdb.1
-	@cp share/docs/info/CouchDB.info rel/couchdb/share/docs/CouchDB.info
 else
 	@mkdir -p rel/couchdb/share/docs/
 	@cp -R src/docs/build/html/ rel/couchdb/share/www/docs
-	@cp src/docs/build/latex/CouchDB.pdf rel/couchdb/share/docs/CouchDB.pdf
 	@cp src/docs/build/man/apachecouchdb.1 rel/couchdb/share/docs/couchdb.1
-	@cp src/docs/build/texinfo/CouchDB.info rel/couchdb/share/docs/CouchDB.info
 endif
 endif
 
@@ -271,7 +292,7 @@ endif
 # target: install- install CouchDB :)
 install:
 	@echo
-	@echo "Notice: There is no 'make install' command for CouchDB 2.0 yet."
+	@echo "Notice: There is no 'make install' command for CouchDB 2.x."
 	@echo
 	@echo "    To install CouchDB into your system, copy the rel/couchdb"
 	@echo "    to your desired installation location. For example:"
@@ -337,25 +358,8 @@ uninstall:
 	@rm -rf $(DESTDIR)/$(data_dir)
 	@rm -rf $(DESTDIR)/$(doc_dir)
 	@rm -rf $(DESTDIR)/$(html_dir)
-	@rm -rf $(DESTDIR)/$(pdf_dir)
 	@rm -rf $(DESTDIR)/$(man_dir)
-	@rm -rf $(DESTDIR)/$(info_dir)
 
-.PHONY: rc
-rc:
-ifeq ($(strip $(COUCH_RC)),)
-	@echo "COUCH_RC environment variable not set. Run as 'COUCH_RC=X make rc'"
-else
-	@rm -rf apache-couchdb-*
-	@$(MAKE) dist 2>&1 > /dev/null
-	@rm apache-couchdb-*.tar.gz
-	@mv apache-couchdb-* apache-couchdb-2.0.0-RC$(COUCH_RC)
-	@tar czf apache-couchdb-2.0.0-RC$(COUCH_RC).tar.gz apache-couchdb-2.0.0-RC$(COUCH_RC)
-	@echo "Done apache-couchdb-2.0.0-RC$(COUCH_RC).tar.gz"
-	@echo "Here is the list of commits since the last RC"
-	@git log --left-right --graph --cherry-pick --oneline 2.0.0-RC$(shell echo $(COUCH_RC)-1 | bc)...master
-	@echo "Done!"
-endif
 
 ################################################################################
 # Misc

@@ -321,6 +321,11 @@ function TEquals(expected, actual, testName) {
     "', got '" + repr(actual) + "'", testName);
 }
 
+function TNotEquals(expected, actual, testName) {
+  T(notEquals(expected, actual), "expected != '" + repr(expected) +
+    "', got '" + repr(actual) + "'", testName);
+}
+
 function TEqualsIgnoreCase(expected, actual, testName) {
   T(equals(expected.toUpperCase(), actual.toUpperCase()), "expected '" + repr(expected) +
     "', got '" + repr(actual) + "'", testName);
@@ -333,6 +338,11 @@ function equals(a,b) {
   } catch (e) {
     return false;
   }
+}
+
+function notEquals(a,b) {
+  if (a != b) return true;
+  return false;
 }
 
 function repr(val) {
@@ -423,37 +433,6 @@ function waitForSuccess(fun, tag) {
         CouchDB.request("GET", "/test_suite_db/?tag="+encodeURIComponent(tag));
       } catch (e) {}
     }
-  }
-}
-
-function getCurrentToken() {
-  var xhr = CouchDB.request("GET", "/_restart/token");
-  return JSON.parse(xhr.responseText).token;
-};
-
-
-function restartServer() {
-  var token = getCurrentToken();
-  var token_changed = false;
-  var tDelta = 5000;
-  var t0 = new Date();
-  var t1;
-
-  CouchDB.request("POST", "/_restart");
-
-  do {
-    try {
-      if(token != getCurrentToken()) {
-        token_changed = true;
-      }
-    } catch (e) {
-      // Ignore errors while the server restarts
-    }
-    t1 = new Date();
-  } while(((t1 - t0) <= tDelta) && !token_changed);
-
-  if(!token_changed) {
-    throw("Server restart failed");
   }
 }
 

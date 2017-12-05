@@ -12,18 +12,28 @@ If you're unsure what this means, ignore this document.
 Dependencies
 ------------
 
-You may need:
+You need the following to run tests:
+
+* `Python                 <https://www.python.org/>`_
+* `nose                   <https://nose.readthedocs.io/en/latest/>`_
+* `requests               <http://docs.python-requests.org/>`_
+* `hypothesis             <https://pypi.python.org/pypi/hypothesis>`_
+
+You need the following optionally to build documentation:
 
 * `Sphinx                 <http://sphinx.pocoo.org/>`_
-* `LaTex                  <http://www.latex-project.org/>`_
-* `GNU Texinfo            <http://www.gnu.org/software/texinfo/>`_
 * `GNU help2man           <http://www.gnu.org/software/help2man/>`_
 * `GnuPG                  <http://www.gnupg.org/>`_
+
+You need the following optionally to build releases:
+
 * `md5sum                 <http://www.microbrew.org/tools/md5sha1sum/>`_
 * `sha1sum                <http://www.microbrew.org/tools/md5sha1sum/>`_
 
-The first of these optional dependencies are required for building the
-documentation. The last three are needed to build releases.
+You need the following optionally to build Fauxton:
+
+* `nodejs                 <http://nodejs.org/>`_
+* `npm                    <https://www.npmjs.com/>`_               
 
 You will need these optional dependencies installed if:
 
@@ -49,17 +59,16 @@ Debian-based (inc. Ubuntu) Systems
 
 ::
 
-    sudo apt-get install help2man python-sphinx \
-        texlive-latex-base texlive-latex-recommended \
-        texlive-latex-extra texlive-fonts-recommended texinfo gnupg
+    sudo apt-get install help2man python-sphinx gnupg nodejs npm \
+         python-hypothesis python-requests python-nose
 
 Gentoo-based Systems
 ~~~~~~~~~~~~~~~~~~~~
 
 ::
 
-    sudo emerge texinfo gnupg coreutils pkgconfig help2man
-    sudo USE=latex emerge sphinx
+    sudo emerge gnupg coreutils pkgconfig help2man sphinx python
+    sudo pip install hypothesis requests nose
 
 RedHat-based (Fedora, Centos, RHEL) Systems
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -67,7 +76,8 @@ RedHat-based (Fedora, Centos, RHEL) Systems
 ::
 
     sudo yum install help2man python-sphinx python-docutils \
-        python-pygments texlive-latex texlive-latex-fonts texinfo gnupg
+        python-pygments gnupg nodejs npm python-nose python-requests \
+        python-hypothesis
 
 Mac OS X
 ~~~~~~~~
@@ -79,7 +89,7 @@ Unless you want to install the optional dependencies, skip to the next section.
 
 Install what else we can with Homebrew::
 
-    brew install help2man gnupg md5sha1sum
+    brew install help2man gnupg md5sha1sum node
 
 If you don't already have pip installed, install it::
 
@@ -87,19 +97,15 @@ If you don't already have pip installed, install it::
 
 Now, install the required Python packages::
 
-    sudo pip install sphinx
-    sudo pip install docutils
-    sudo pip install pygments
-
-Download `MacTeX <http://www.tug.org/mactex/>`_ and follow the instructions 
-to get a working LaTeX install on your system.
+    sudo pip install sphinx docutils pygments nose requests hypothesis sphinx_rtd_theme
 
 FreeBSD
 ~~~~~~~
 
 ::
 
-    pkg install help2man texinfo gnupg py27-sphinx texlive-full tex-formats
+    pkg install help2man gnupg py27-sphinx node
+    pip install nose requests hypothesis
 
 Windows
 ~~~~~~~
@@ -117,10 +123,6 @@ Configure the source by running::
 If you intend to run the test suites::
 
     ./configure -c
-
-If you want to build it into different destination than `/usr/local`.::
-
-    ./configure --prefix=/<your directory path>
 
 If you don't want to build Fauxton or documentation specify
 ``--disable-fauxton`` and/or ``--disable-docs`` arguments for ``configure`` to
@@ -148,7 +150,7 @@ to make targets::
     make eunit apps=couch,chttpd
 
     # Run only tests from couch_btree_tests suite
-    make eunit suites=couch_btree_tests
+    make eunit apps=couch suites=couch_btree
 
     # Run only only specific tests
     make eunit tests=btree_open_test,reductions_test
@@ -171,8 +173,15 @@ JavaScript tests accepts only `suites` option, but in the same way::
     # Run only basic and design_options tests
     make javascript suites="basic design_options"
 
-Note that tests are delimited here by whitespace, not by comma. You can get list
-of all possible test targets with the following command::
+    # Ignore specific test suites via command line
+    make javascript ignore_js_suites="all_docs bulk_docs"
+
+    # Ignore specific test suites in makefile
+    ignore_js_suites=all_docs,bulk_docs
+
+Note that tests on the command line are delimited here by whitespace,
+not by comma.You can get list of all possible test targets with the
+following command::
 
     make list-js-suites
 

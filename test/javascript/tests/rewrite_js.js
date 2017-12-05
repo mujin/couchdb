@@ -13,9 +13,8 @@
  
  
 couchTests.rewrite = function(debug) {
-  return console.log('TODO: test not yet implemented');
   if (debug) debugger;
-  var dbNames = ["test_suite_db", "test_suite_db/with_slashes"];
+  var dbNames = [get_random_db_name(), get_random_db_name() + "test_suite_db/with_slashes"];
   for (var i=0; i < dbNames.length; i++) {
     var db = new CouchDB(dbNames[i]);
     var dbName = encodeURIComponent(dbNames[i]);
@@ -337,5 +336,8 @@ couchTests.rewrite = function(debug) {
     var url = "/"+dbName+"/_design/loop/_rewrite/loop";
     var xhr = CouchDB.request("GET", url);
     TEquals(400, xhr.status);
+
+    // cleanup
+    db.deleteDb();
   }
 }
